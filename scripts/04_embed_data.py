@@ -60,6 +60,9 @@ def main():
     if os.path.exists(OUTPUT_FILE):
         with open(OUTPUT_FILE, 'r', encoding='utf-8') as f:
             existing = json.load(f)
+        if any(a.get('id') != b.get('id') or a['text'] != b['text']
+               for a, b in zip(existing, records)) or len(existing) > len(records):
+            sys.exit('Embedding cache belongs to different input. Preserve it and use a separate output file.')
         already_embedded = len(existing)
         if already_embedded >= len(records):
             print(f"✅ All {len(records):,} sentences already have embeddings in {OUTPUT_FILE}")
@@ -73,7 +76,12 @@ def main():
 
     # Generate embeddings
     secrets = load_secrets()
-    client = OpenAI(api_key=secrets['OPENAI_API_KEY'])
+    router_key = secrets.get('OPENROUTER_API_KEY')
+    client = OpenAI(
+        api_key=router_key or secrets.get('OPENAI_API_KEY'),
+        base_url='https://openrouter.ai/api/v1' if router_key else 'https://api.openai.com/v1',
+        max_retries=5, timeout=60,
+    )
 
     embedded_records = list(existing)  # Start from any partial results
     errors = 0
@@ -84,8 +92,8 @@ def main():
 
         try:
             response = client.embeddings.create(
-                model='text-embedding-3-small',
-                input=batch_texts
+                model='openai/text-embedding-3-small' if router_key else 'text-embedding-3-small',
+                input=batch_texts, encoding_format='float', dimensions=1536,
             )
 
             for record, item in zip(batch, response.data):
@@ -94,19 +102,25 @@ def main():
                 embedded_records.append(record_with_embedding)
 
         except Exception as e:
-            print(f"\n   ❌ Batch error: {e}")
-            errors += len(batch)
+            # Save only a contiguous prefix, so resuming never skips failed records.
+            with open(OUTPUT_FILE + '.tmp', 'w', encoding='utf-8') as f:
+                json.dump(embedded_records, f, ensure_ascii=False)
+            os.replace(OUTPUT_FILE + '.tmp', OUTPUT_FILE)
+            print(f"\nBatch failed: {type(e).__name__}. Progress saved; fix the error and rerun.")
+            raise SystemExit(1)
 
         # Save progress every 10 batches (in case of crash)
         if (i // BATCH_SIZE + 1) % 10 == 0:
-            with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+            with open(OUTPUT_FILE + '.tmp', 'w', encoding='utf-8') as f:
                 json.dump(embedded_records, f, ensure_ascii=False)
+            os.replace(OUTPUT_FILE + '.tmp', OUTPUT_FILE)
 
         time.sleep(0.1)
 
     # Final save
-    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+    with open(OUTPUT_FILE + '.tmp', 'w', encoding='utf-8') as f:
         json.dump(embedded_records, f, ensure_ascii=False)
+    os.replace(OUTPUT_FILE + '.tmp', OUTPUT_FILE)
 
     file_size_mb = os.path.getsize(OUTPUT_FILE) / (1024 * 1024)
     print(f"\n✅ Embedding complete!")

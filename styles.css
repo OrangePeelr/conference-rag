@@ -762,3 +762,23 @@ input:focus {
         flex-direction: column;
     }
 }
+/* One source filter shared by all three search modes. */
+.speaker-filter {
+    margin-bottom: 1.5rem;
+    padding: 1.25rem;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    background: #162033;
+}
+.speaker-filter label { display: block; margin-bottom: .6rem; font-weight: 600; }
+.speaker-filter select {
+    max-width: 100%;
+    width: 28rem;
+    padding: .75rem;
+    border-radius: 8px;
+    border: 1px solid #475569;
+    background: #0f172a;
+    color: #f1f5f9;
+    font: inherit;
+}
+.speaker-filter p { margin-top: .65rem; color: #94a3b8; font-size: .9rem; }

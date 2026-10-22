@@ -73,10 +73,11 @@ def main():
     print("Splitting talks into sentences...")
     sentence_records = []
     for talk in tqdm(talks, desc="Splitting"):
-        talk_id = str(uuid.uuid4())
+        talk_id = str(uuid.uuid5(uuid.NAMESPACE_URL, talk['url']))
         sentences = split_into_sentences(talk['text'])
         for i, sentence in enumerate(sentences, 1):
             sentence_records.append({
+                'id': str(uuid.uuid5(uuid.UUID(talk_id), f'{i}:{sentence}')),
                 'talk_id': talk_id,
                 'title': talk['title'],
                 'speaker': talk['speaker'],
@@ -102,23 +103,7 @@ def main():
     public_config, secrets = load_config()
     client = create_client(public_config['SUPABASE_URL'], secrets['SUPABASE_SERVICE_KEY'])
 
-    # Check for existing data and truncate if needed
-    print("\n" + "=" * 60)
-    print("Checking for existing data...")
-    print("=" * 60)
-
-    try:
-        result = client.table('sentence_embeddings').select('id', count='exact').limit(1).execute()
-        existing_count = result.count or 0
-        if existing_count > 0:
-            print(f"   Found {existing_count:,} existing rows. Truncating table...")
-            client.table('sentence_embeddings').delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
-            print("   ✅ Table truncated.")
-        else:
-            print("   Table is empty — ready for import.")
-    except Exception as e:
-        print(f"   ⚠️ Could not check existing data: {e}")
-        print("   Proceeding with import anyway...")
+    # Stable IDs make retries safe and preserve embeddings on existing rows.
 
     # Import in batches
     print("\n" + "=" * 60)
@@ -132,11 +117,11 @@ def main():
     for i in tqdm(range(0, len(sentence_records), BATCH_SIZE), desc="Importing"):
         batch = sentence_records[i:i + BATCH_SIZE]
         try:
-            client.table('sentence_embeddings').insert(batch).execute()
+            client.table('sentence_embeddings').upsert(batch, on_conflict='id').execute()
             success += len(batch)
         except Exception as e:
             print(f"\nError at batch {i // BATCH_SIZE}: {e}")
-            errors += len(batch)
+            raise SystemExit(1)
         time.sleep(0.1)
 
     print(f"\n✅ Import complete!")

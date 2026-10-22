@@ -2,8 +2,8 @@
 Step 5: Import Embeddings to Database
 =========================================
 Reads scripts/output/sentences_with_embeddings.json and imports
-all records (text + embeddings) to Supabase, replacing any
-existing data.
+all records (text + embeddings) to Supabase using stable-ID upserts.
+Existing corpus rows are preserved, so imports can safely resume.
 
 After this step, SEMANTIC SEARCH will light up green on your site!
 
@@ -64,23 +64,8 @@ def main():
     public_config, secrets = load_config()
     client = create_client(public_config['SUPABASE_URL'], secrets['SUPABASE_SERVICE_KEY'])
 
-    # Truncate existing data and re-import everything
-    print("\n" + "=" * 60)
-    print("Replacing database contents (truncate + re-import)")
-    print("=" * 60)
-
-    try:
-        result = client.table('sentence_embeddings').select('id', count='exact').limit(1).execute()
-        existing_count = result.count or 0
-        if existing_count > 0:
-            print(f"   Truncating {existing_count:,} existing rows...")
-            client.table('sentence_embeddings').delete().neq('id', '00000000-0000-0000-0000-000000000000').execute()
-            print("   ✅ Table truncated.")
-        else:
-            print("   Table is empty — ready for import.")
-    except Exception as e:
-        print(f"   ⚠️ Could not check existing data: {e}")
-        print("   Proceeding with import anyway...")
+    if any(not r.get('id') or not r.get('embedding') for r in records):
+        sys.exit('Every record needs a stable ID and an embedding. Complete steps 03 and 04 first.')
 
     # Batch import (much faster than individual updates!)
     print(f"\n   Importing {len(records):,} records in batches of {BATCH_SIZE}...\n")
@@ -91,11 +76,11 @@ def main():
     for i in tqdm(range(0, len(records), BATCH_SIZE), desc="Importing"):
         batch = records[i:i + BATCH_SIZE]
         try:
-            client.table('sentence_embeddings').insert(batch).execute()
+            client.table('sentence_embeddings').upsert(batch, on_conflict='id').execute()
             success += len(batch)
         except Exception as e:
             print(f"\nError at batch {i // BATCH_SIZE}: {e}")
-            errors += len(batch)
+            raise SystemExit(1)
         time.sleep(0.1)
 
     print(f"\n✅ Import complete!")

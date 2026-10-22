@@ -58,6 +58,22 @@ const loginMessage = document.getElementById('login-message');
 const logoutBtn = document.getElementById('logout-btn');
 const userEmailSpan = document.getElementById('user-email');
 const loading = document.getElementById('loading');
+const speakerSelect = document.getElementById('speaker-select');
+let speakersLoaded = false;
+
+async function loadSpeakers() {
+    if (!speakerSelect || speakersLoaded) return;
+    const { data, error } = await supabaseClient.rpc('list_speakers');
+    if (error) return;
+    for (const row of data || []) {
+        const option = document.createElement('option');
+        option.value = row.speaker;
+        option.textContent = row.speaker;
+        speakerSelect.appendChild(option);
+    }
+    speakersLoaded = true;
+    speakerSelect.disabled = false;
+}
 
 // Setup Banner Elements
 const setupBanner = document.getElementById('setup-banner');
@@ -278,6 +294,7 @@ if (logoutBtn) {
 function showLogin() {
     if (loginScreen) loginScreen.classList.remove('hidden');
     if (appScreen) appScreen.classList.add('hidden');
+    for (const type of ['keyword', 'semantic', 'rag']) showResults(type, '');
 }
 
 function showApp(user) {
@@ -286,6 +303,7 @@ function showApp(user) {
     if (userEmailSpan) userEmailSpan.textContent = user.email;
     // Check search readiness when user logs in
     checkSearchReadiness();
+    loadSpeakers();
 }
 
 function showMessage(text, type) {
@@ -341,9 +359,9 @@ async function checkSearchReadiness() {
         if (hasEmbeddings) {
             try {
                 const { data, error: fnError } = await supabaseClient.functions.invoke('embed-question', {
-                    body: { question: 'test' }
+                    body: { healthcheck: true }
                 });
-                semanticReady = !fnError;
+                semanticReady = !fnError && data?.ready === true;
             } catch {
                 // CORS or network error → function not deployed
             }
@@ -356,9 +374,9 @@ async function checkSearchReadiness() {
         } else {
             try {
                 const { data, error: fnError } = await supabaseClient.functions.invoke('generate-answer', {
-                    body: { question: 'test', context_talks: [] }
+                    body: { healthcheck: true }
                 });
-                setSearchReady('rag', !fnError || fnError.context?.status !== 404);
+                setSearchReady('rag', !fnError && data?.ready === true);
             } catch {
                 setSearchReady('rag', false);
             }
@@ -416,11 +434,13 @@ async function keywordSearch() {
 
     try {
         // Search sentence_embeddings that contain the keyword (case-insensitive)
-        const { data, error } = await supabaseClient
+        let search = supabaseClient
             .from('sentence_embeddings')
             .select('text, talk_id, title, speaker, url')
             .ilike('text', `%${query}%`)
             .limit(20);
+        if (speakerSelect?.value) search = search.eq('speaker', speakerSelect.value);
+        const { data, error } = await search;
 
         if (error) throw new Error(`Search failed: ${error.message}`);
 
@@ -462,9 +482,18 @@ async function keywordSearch() {
 }
 
 function highlightKeyword(text, keyword) {
-    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`(${escaped})`, 'gi');
-    return escapeHtml(text).replace(regex, '<mark>$1</mark>');
+    if (!keyword) return escapeHtml(text);
+    const lower = text.toLowerCase();
+    const needle = keyword.toLowerCase();
+    let output = '';
+    let cursor = 0;
+    let match;
+    while ((match = lower.indexOf(needle, cursor)) !== -1) {
+        output += escapeHtml(text.slice(cursor, match));
+        output += `<mark>${escapeHtml(text.slice(match, match + keyword.length))}</mark>`;
+        cursor = match + keyword.length;
+    }
+    return output + escapeHtml(text.slice(cursor));
 }
 
 // ============================================
@@ -535,6 +564,10 @@ async function askQuestion() {
 
         // Step 3: Group by talk (with similarity scores and URLs)
         const topTalks = groupByTalk(results);
+        if (!topTalks.length) {
+            showResults('rag', '<div class="no-results">No source talks found. Try a different question.</div>');
+            return;
+        }
 
         // Step 4: Fetch full talk text for richer context
         const enrichedTalks = await fetchFullTalkText(topTalks);
@@ -590,7 +623,7 @@ async function getEmbedding(text) {
     });
 
     if (error) {
-        throw new Error(data?.error || 'Failed to get embedding');
+        throw new Error(await functionError(error, data, 'Failed to get embedding'));
     }
 
     return data.embedding;
@@ -602,7 +635,8 @@ async function searchSentences(embedding) {
 
     const { data, error } = await supabaseClient.rpc('match_sentences', {
         query_embedding: embedding,
-        match_count: 20
+        match_count: 20,
+        filter_speaker: speakerSelect?.value || null
     });
 
     if (error) throw new Error(`Database search failed: ${error.message}`);
@@ -690,10 +724,19 @@ async function generateAnswer(question, contextTalks) {
     });
 
     if (error) {
-        throw new Error(data?.error || 'Failed to generate answer');
+        throw new Error(await functionError(error, data, 'Failed to generate answer'));
     }
 
     return data.answer;
+}
+
+async function functionError(error, data, fallback) {
+    if (data?.error) return data.error;
+    try {
+        const response = await error.context?.json();
+        if (response?.error) return response.error;
+    } catch { /* A network error may not have a JSON response. */ }
+    return fallback;
 }
 
 // ============================================

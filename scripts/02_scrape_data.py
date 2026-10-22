@@ -2,13 +2,13 @@
 Step 2: Scrape Conference Talks
 ================================
 Scrapes 5 years of General Conference talks from the Church website
-and saves them to data/talks.json.
+and saves them to scripts/output/talks.json.
 
 Usage:
     python scripts/02_scrape_data.py
 
 Output:
-    data/talks.json  — JSON array of talk objects
+    scripts/output/talks.json  — JSON array of talk objects
 
 Prerequisites:
     - Internet connection
@@ -18,6 +18,8 @@ Prerequisites:
 import json
 import os
 import re
+from datetime import date
+from urllib.parse import urljoin
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
@@ -26,8 +28,8 @@ from tqdm import tqdm
 
 
 YEARS_TO_SCRAPE = 5
-START_YEAR = 2025 - YEARS_TO_SCRAPE
-END_YEAR = 2025
+END_YEAR = date.today().year
+START_YEAR = END_YEAR - YEARS_TO_SCRAPE + 1
 OUTPUT_DIR = os.path.join('scripts', 'output')
 OUTPUT_FILE = os.path.join(OUTPUT_DIR, 'talks.json')
 
@@ -75,7 +77,7 @@ def get_talk_urls(conference_url, year, month, session):
         if not href or month_path not in href or 'lang=eng' not in href:
             continue
 
-        canonical = 'https://www.churchofjesuschrist.org' + href
+        canonical = urljoin('https://www.churchofjesuschrist.org', href)
         if canonical in seen:
             continue
         seen.add(canonical)
@@ -159,7 +161,7 @@ def main():
 
     if not talks_data:
         print("\n❌ No talks scraped! Check your internet connection or website structure.")
-        return
+        raise SystemExit(1)
 
     # Save to JSON
     os.makedirs(OUTPUT_DIR, exist_ok=True)

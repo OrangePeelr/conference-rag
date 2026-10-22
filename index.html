@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Supabase RAG - Conference Q&A</title>
+    <title>Conference Q&A</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 
@@ -84,6 +84,13 @@
         </nav>
 
         <div class="container">
+            <div class="speaker-filter">
+                <label for="speaker-select">Search talks by</label>
+                <select id="speaker-select" disabled>
+                    <option value="">All speakers</option>
+                </select>
+                <p>Applies to keyword search, semantic search, and sources used in answers.</p>
+            </div>
             <div class="search-panels">
                 <!-- Panel 1: Keyword Search -->
                 <div class="search-panel" id="keyword-panel">
@@ -91,8 +98,7 @@
                         <h3>🔍 Keyword Search</h3>
                         <span class="status-badge not-ready" id="keyword-status">🔴 Not Ready</span>
                     </div>
-                    <p class="panel-description">Search conference talks by keyword. Works once you import the
-                        conference data.</p>
+                    <p class="panel-description">Find passages containing your exact words or phrases.</p>
                     <div class="panel-input">
                         <input type="text" id="keyword-input" placeholder="Search by keyword..." autocomplete="off"
                             disabled />
@@ -107,8 +113,7 @@
                         <h3>🧠 Semantic Search</h3>
                         <span class="status-badge not-ready" id="semantic-status">🔴 Not Ready</span>
                     </div>
-                    <p class="panel-description">Find similar content by meaning, not just keywords. Requires embeddings
-                        and the embed-question Edge Function.</p>
+                    <p class="panel-description">Find passages with a similar meaning, even when the words differ.</p>
                     <div class="panel-input">
                         <input type="text" id="semantic-input" placeholder="Search by meaning..." autocomplete="off"
                             disabled />
@@ -123,8 +128,7 @@
                         <h3>🤖 Ask a Question (RAG)</h3>
                         <span class="status-badge not-ready" id="rag-status">🔴 Not Ready</span>
                     </div>
-                    <p class="panel-description">Get AI-generated answers based on conference talks. Requires all Edge
-                        Functions deployed.</p>
+                    <p class="panel-description">Ask a question and read an answer grounded in talks, with linked sources.</p>
                     <div class="panel-input">
                         <input type="text" id="rag-input" placeholder="Ask a question about conference talks..."
                             autocomplete="off" disabled />
