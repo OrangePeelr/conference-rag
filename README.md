@@ -24,6 +24,8 @@ Run `scripts/01_create_schema.py`, then the numbered data scripts in order. The 
 
 The SQL migration creates authenticated read access to the conference corpus, service-role write access, a cosine HNSW index, speaker filtering, and an atomic quota of 20 AI requests per user per minute. Each full RAG question uses two requests: embedding and answer generation. `page_views` deliberately remains public for the assignment's RLS exercise. Health checks require login and do not call a paid model.
 
+Retrieval uses separate SQL branches for all speakers and a selected speaker, with `EXECUTE ... USING` to plan for the actual parameters while keeping data bound safely. During verification, the original optional-filter generic plan performed a full scan and timed out; the corrected query uses the vector index. Iterative HNSW scanning keeps selective speaker filters useful. See [PostgreSQL dynamic commands](https://www.postgresql.org/docs/current/plpgsql-statements.html#PLPGSQL-STATEMENTS-EXECUTING-DYN) and [Supabase HNSW filtering](https://supabase.com/docs/guides/ai/vector-indexes/hnsw-indexes).
+
 Edge Functions validate the user's token against Supabase Auth, enforce the quota, validate request sizes, and then call the AI provider with server-side secrets. `verify_jwt = false` in the CLI configuration means validation happens inside each function; it does not make them anonymous. Deploy functions with the Supabase CLI using `--project-ref rlrnrrgffadpbhcpopzc --use-api` after setting `SUPABASE_ACCESS_TOKEN` in the environment and storing `OPENROUTER_API_KEY` with Supabase secrets. GitHub Actions deploys an explicit list of public website assets on pushes to `main`.
 
 Verify the deployed security behavior with:

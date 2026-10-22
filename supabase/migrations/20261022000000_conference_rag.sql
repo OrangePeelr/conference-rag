@@ -56,16 +56,37 @@ RETURNS TABLE (
     id uuid, talk_id uuid, title text, speaker text, url text,
     text text, similarity double precision
 )
-LANGUAGE sql STABLE SECURITY INVOKER
+LANGUAGE plpgsql STABLE SECURITY INVOKER
 SET search_path = public, extensions
+SET hnsw.iterative_scan = strict_order
+SET hnsw.ef_search = 100
 AS $$
-    SELECT s.id, s.talk_id, s.title, s.speaker, s.url, s.text,
-           1 - (s.embedding <=> query_embedding) AS similarity
-    FROM public.sentence_embeddings s
-    WHERE s.embedding IS NOT NULL AND (filter_speaker IS NULL OR s.speaker = filter_speaker)
-    ORDER BY s.embedding <=> query_embedding
-    LIMIT greatest(1, least(coalesce(match_count, 20), 100));
+DECLARE safe_count integer := greatest(1, least(coalesce(match_count, 20), 100));
+BEGIN
+    IF query_embedding IS NULL THEN RETURN; END IF;
+    -- Replan with actual arguments. A generic plan for an optional speaker OR
+    -- predicate can prefer a full vector scan, exceeding the API timeout.
+    -- Values remain bound parameters; neither branch interpolates user input.
+    IF filter_speaker IS NULL THEN
+        RETURN QUERY EXECUTE '
+            SELECT s.id, s.talk_id, s.title, s.speaker, s.url, s.text,
+                   1 - (s.embedding <=> $1) AS similarity
+            FROM public.sentence_embeddings s
+            WHERE s.embedding IS NOT NULL
+            ORDER BY s.embedding <=> $1 LIMIT $2'
+        USING query_embedding, safe_count;
+    ELSE
+        RETURN QUERY EXECUTE '
+            SELECT s.id, s.talk_id, s.title, s.speaker, s.url, s.text,
+                   1 - (s.embedding <=> $1) AS similarity
+            FROM public.sentence_embeddings s
+            WHERE s.embedding IS NOT NULL AND s.speaker = $3
+            ORDER BY s.embedding <=> $1 LIMIT $2'
+        USING query_embedding, safe_count, filter_speaker;
+    END IF;
+END;
 $$;
+
 REVOKE ALL ON FUNCTION public.match_sentences(extensions.vector, integer, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.match_sentences(extensions.vector, integer, text) TO authenticated, service_role;
 

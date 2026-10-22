@@ -89,6 +89,8 @@ def main():
             check('Embedding has 1536 finite dimensions', len(embedding) == 1536 and all(math.isfinite(x) for x in embedding))
             response = request('POST', '/rest/v1/rpc/match_sentences', headers,
                                json={'query_embedding': embedding, 'match_count': 20})
+            if not response.ok:
+                print('Vector search error:', response.status_code, response.json(), flush=True)
             check('Vector search returns cited sources', response.ok and bool(response.json()) and all(r.get('url') for r in response.json()))
             matches = response.json()
             response = request('POST', '/rest/v1/rpc/match_sentences', headers,

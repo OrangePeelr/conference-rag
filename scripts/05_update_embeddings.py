@@ -30,7 +30,7 @@ from tqdm import tqdm
 
 
 INPUT_FILE = os.path.join('scripts', 'output', 'sentences_with_embeddings.json')
-BATCH_SIZE = 100
+BATCH_SIZE = 25
 
 
 def load_config():
@@ -67,6 +67,20 @@ def main():
     if any(not r.get('id') or not r.get('embedding') for r in records):
         sys.exit('Every record needs a stable ID and an embedding. Complete steps 03 and 04 first.')
 
+    # Collect missing IDs before writing, so pagination stays stable while resuming.
+    missing_ids = set()
+    offset = 0
+    while True:
+        page = client.table('sentence_embeddings').select('id') \
+            .is_('embedding', 'null').order('id').range(offset, offset + 999).execute().data
+        missing_ids.update(row['id'] for row in page)
+        if len(page) < 1000:
+            break
+        offset += 1000
+    original_count = len(records)
+    records = [row for row in records if row['id'] in missing_ids]
+    print(f'   Already embedded: {original_count - len(records):,}; remaining: {len(records):,}')
+
     # Batch import (much faster than individual updates!)
     print(f"\n   Importing {len(records):,} records in batches of {BATCH_SIZE}...\n")
 
@@ -75,12 +89,18 @@ def main():
 
     for i in tqdm(range(0, len(records), BATCH_SIZE), desc="Importing"):
         batch = records[i:i + BATCH_SIZE]
-        try:
-            client.table('sentence_embeddings').upsert(batch, on_conflict='id').execute()
-            success += len(batch)
-        except Exception as e:
-            print(f"\nError at batch {i // BATCH_SIZE}: {e}")
-            raise SystemExit(1)
+        for attempt in range(4):
+            try:
+                client.table('sentence_embeddings').upsert(
+                    batch, on_conflict='id', returning='minimal'
+                ).execute()
+                success += len(batch)
+                break
+            except Exception as e:
+                if attempt == 3:
+                    print(f"\nError at batch {i // BATCH_SIZE}: {e}")
+                    raise SystemExit(1)
+                time.sleep(2 ** attempt)
         time.sleep(0.1)
 
     print(f"\n✅ Import complete!")
@@ -94,7 +114,7 @@ def main():
 
     embedded_result = client.table('sentence_embeddings') \
         .select('id', count='exact') \
-        .not_('embedding', 'is', 'null') \
+        .not_.is_('embedding', 'null') \
         .limit(1).execute()
     with_emb = embedded_result.count or 0
 
