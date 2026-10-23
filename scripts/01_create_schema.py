@@ -40,8 +40,8 @@ def create_schema():
 
     # Keep the SQL versioned alongside the Edge Functions.
     from pathlib import Path
-    migration = Path(__file__).resolve().parents[1] / 'supabase/migrations/20261022000000_conference_rag.sql'
-    schema_sql = migration.read_text()
+    migrations = Path(__file__).resolve().parents[1] / 'supabase/migrations'
+    schema_sql = '\n'.join(path.read_text() for path in sorted(migrations.glob('*.sql')))
 
     url = f"https://api.supabase.com/v1/projects/{SUPABASE_PROJECT_REF}/database/query"
     headers = {

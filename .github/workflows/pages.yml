@@ -26,12 +26,14 @@ jobs:
         run: |
           node --check app.js
           node --check config.js
+          node --check hybrid.js
+          node --test tests/hybrid.test.cjs
           python3 -m compileall -q scripts
       - uses: actions/configure-pages@v5
       - name: Package public website assets
         run: |
           mkdir _site
-          cp index.html app.js styles.css config.js config.public.json .nojekyll _site/
+          cp index.html app.js hybrid.js styles.css config.js config.public.json .nojekyll _site/
       - uses: actions/upload-pages-artifact@v4
         with:
           path: _site

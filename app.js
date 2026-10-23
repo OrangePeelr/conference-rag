@@ -294,7 +294,8 @@ if (logoutBtn) {
 function showLogin() {
     if (loginScreen) loginScreen.classList.remove('hidden');
     if (appScreen) appScreen.classList.add('hidden');
-    for (const type of ['keyword', 'semantic', 'rag']) showResults(type, '');
+    for (const type of ['keyword', 'semantic', 'rag', 'hybrid']) showResults(type, '');
+    window.ConferenceHybrid?.reset();
 }
 
 function showApp(user) {
@@ -304,6 +305,7 @@ function showApp(user) {
     // Check search readiness when user logs in
     checkSearchReadiness();
     loadSpeakers();
+    window.ConferenceHybrid?.initialize();
 }
 
 function showMessage(text, type) {

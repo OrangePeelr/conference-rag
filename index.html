@@ -136,6 +136,39 @@
                     </div>
                     <div class="search-results" id="rag-results"></div>
                 </div>
+
+                <div class="search-panel" id="hybrid-panel">
+                    <div class="panel-header">
+                        <h3>🔎 Combined Search &amp; Answers</h3>
+                        <span class="status-badge not-ready" id="hybrid-status">🔴 Not Ready</span>
+                    </div>
+                    <p class="panel-description">Search words and meaning across talk text, authors, titles, and conference dates. Add filters to focus your sources.</p>
+                    <form id="hybrid-form">
+                        <div class="panel-input">
+                            <input type="text" id="hybrid-input" maxlength="2000" aria-label="Combined search question"
+                                placeholder="What did President Nelson teach about temples in 2024?" autocomplete="off" disabled />
+                            <button type="submit" id="hybrid-btn" class="btn-primary" disabled>Search</button>
+                        </div>
+                        <details class="hybrid-filter-details">
+                            <summary>Author, title, and date filters</summary>
+                            <div class="hybrid-filters">
+                                <label>Author<input type="text" id="hybrid-author" maxlength="500" list="hybrid-authors" placeholder="e.g. President Nelson" />
+                                    <datalist id="hybrid-authors"></datalist></label>
+                                <label>Title contains<input type="text" id="hybrid-title" maxlength="500" placeholder="e.g. Think Celestial" /></label>
+                                <label>From year<select id="hybrid-year-from"><option value="">Any year</option></select></label>
+                                <label>Through year<select id="hybrid-year-to"><option value="">Any year</option></select></label>
+                                <label>Conference<select id="hybrid-season"><option value="">April or October</option><option>April</option><option>October</option></select></label>
+                            </div>
+                        </details>
+                        <div class="hybrid-options">
+                            <label><input type="checkbox" id="hybrid-answer" checked /> Include an AI answer</label>
+                            <button type="button" id="hybrid-reset" class="btn-secondary">Clear filters</button>
+                        </div>
+                        <p class="info-text hybrid-help">Try <button type="button" class="hybrid-example" data-query="author:&quot;President Nelson&quot; year:2024 temple">Nelson · 2024 · temple</button> or <button type="button" class="hybrid-example" data-query="title:&quot;Think Celestial&quot;">Think Celestial</button>. Dates refer to the conference year and season.</p>
+                    </form>
+                    <div id="hybrid-applied" class="hybrid-applied" aria-live="polite"></div>
+                    <div class="search-results" id="hybrid-results" aria-live="polite"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -153,6 +186,7 @@
 
     <!-- Main Application Logic -->
     <script src="app.js"></script>
+    <script src="hybrid.js"></script>
 </body>
 
 </html>

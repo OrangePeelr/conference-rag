@@ -14,6 +14,7 @@ A Retrieval Augmented Generation (RAG) application that lets users ask questions
 - Fork: https://github.com/OrangePeelr/conference-rag
 - Supabase project: `rlrnrrgffadpbhcpopzc`
 - Custom feature: a speaker selector shared by keyword search, semantic search, and RAG. The speaker restriction is applied in the database before selecting sources.
+- A fourth panel, **Combined Search & Answers**, appears below RAG. It combines weighted full-text search over title, speaker, calling, conference date, and talk text with the existing sentence-vector search. Both searches apply author/title/year/season restrictions before reciprocal rank fusion (RRF), with one result per talk. Keyword and semantic ranks contribute `1 / (60 + rank)` each; fused scores are not confidence percentages.
 - AI provider: OpenRouter, using `openai/text-embedding-3-small` (1,536 dimensions) and `openai/gpt-4o`. The models match the assignment; requests go through OpenRouter's OpenAI-compatible API.
 
 ### Run and maintain this version
@@ -21,6 +22,12 @@ A Retrieval Augmented Generation (RAG) application that lets users ask questions
 Run commands from this repository directory. Use Python 3.13 and install `requirements.txt` in a virtual environment. Public browser configuration lives in `config.public.json`. Private scripts use the git-ignored `config.secret.json`; for this deployment its AI credential is `OPENROUTER_API_KEY`. Never add the root `.env` or secret config to Git.
 
 Run `scripts/01_create_schema.py`, then the numbered data scripts in order. The scraper uses the latest five calendar years. Stable sentence IDs let imports resume without deleting the corpus. The embedding script saves progress and checks that cached records still match its input.
+
+The hybrid migration backfills `conference_talks` from existing sentences without changing embeddings. Future imports upsert the talk-level documents as well as sentences. Its weighted `tsvector` has a GIN index; RLS permits signed-in reads and service-role writes. Exact conference days are not in the corpus: date filters mean year and April/October conference.
+
+In the fourth panel, use the filter controls, ask a question such as `What did President Nelson teach about temples in 2024?`, or use `author:"President Nelson" year:2024 temple` and `title:"Think Celestial"`. A deterministic parser recognizes common author/date mentions, with the applied restrictions displayed above results. A last name can match more than one author: `Nelson` includes Michael T. Nelson; `President Nelson` narrows to Russell M. Nelson. Questions asking who quoted an author are not automatically restricted to that author. Form filters override detected filters; the shared speaker selector is the fallback when no author is specified.
+
+Up to eight ranked talks are supplied to the answer model, with numbered citations, author/date metadata, and explicit context limits. Results remain visible if embedding or answer generation fails. Metadata-only browsing needs no AI call; ordinary search uses an embedding call, and the optional answer uses another call. Answers cover the selected sources and cannot establish topic frequency across the complete corpus.
 
 The SQL migration creates authenticated read access to the conference corpus, service-role write access, a cosine HNSW index, speaker filtering, and an atomic quota of 20 AI requests per user per minute. Each full RAG question uses two requests: embedding and answer generation. `page_views` deliberately remains public for the assignment's RLS exercise. Health checks require login and do not call a paid model.
 
@@ -33,6 +40,9 @@ Verify the deployed security behavior with:
 ```bash
 python scripts/verify_security.py
 python scripts/verify_security.py --rag  # includes real AI calls
+node --test tests/hybrid.test.cjs
+python scripts/verify_hybrid.py
+python scripts/verify_hybrid.py --rag    # includes embedding and eight-source answer
 ```
 
 These checks create and remove an isolated test account without sending email. The second command additionally checks vector retrieval, speaker filtering, and an answer with citations. Test results and the generated answer are saved in the ignored `scripts/output/` directory. Automated checks do not replace trying magic-link delivery in your own inbox.

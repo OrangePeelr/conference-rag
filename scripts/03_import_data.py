@@ -103,6 +103,14 @@ def main():
     public_config, secrets = load_config()
     client = create_client(public_config['SUPABASE_URL'], secrets['SUPABASE_SERVICE_KEY'])
 
+    # One document per talk powers weighted full-text and metadata search.
+    talk_records = [{
+        'talk_id': str(uuid.uuid5(uuid.NAMESPACE_URL, talk['url'])),
+        **{key: talk.get(key) for key in ['title', 'speaker', 'calling', 'year', 'season', 'url', 'text']},
+    } for talk in talks]
+    for i in range(0, len(talk_records), BATCH_SIZE):
+        client.table('conference_talks').upsert(talk_records[i:i + BATCH_SIZE], on_conflict='talk_id').execute()
+
     # Stable IDs make retries safe and preserve embeddings on existing rows.
 
     # Import in batches
