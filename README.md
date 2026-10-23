@@ -15,7 +15,7 @@ A Retrieval Augmented Generation (RAG) application that lets users ask questions
 - Supabase project: `rlrnrrgffadpbhcpopzc`
 - Custom feature: a speaker selector shared by keyword search, semantic search, and RAG. The speaker restriction is applied in the database before selecting sources.
 - A fourth panel, **Combined Search & Answers**, appears below RAG. It combines weighted full-text search over title, speaker, calling, conference date, and talk text with the existing sentence-vector search. Both searches apply author/title/year/season restrictions before reciprocal rank fusion (RRF), with one result per talk. Keyword and semantic ranks contribute `1 / (60 + rank)` each; fused scores are not confidence percentages.
-- AI provider: OpenRouter, using `openai/text-embedding-3-small` (1,536 dimensions) and `openai/gpt-4o`. The models match the assignment; requests go through OpenRouter's OpenAI-compatible API.
+- AI provider: OpenRouter, using `openai/text-embedding-3-small` (1,536 dimensions) for embeddings and `deepseek/deepseek-v4.1-flash-1017` for answers. Requests go through OpenRouter's OpenAI-compatible API.
 
 ### Run and maintain this version
 

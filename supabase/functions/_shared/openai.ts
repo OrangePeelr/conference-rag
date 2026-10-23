@@ -6,7 +6,9 @@ export async function openai(path: string, body: unknown) {
   if (!key) throw new HttpError(503, "The AI service has not been configured.");
   const baseUrl = routerKey ? "https://openrouter.ai/api/v1" : "https://api.openai.com/v1";
   const payload = { ...(body as Record<string, unknown>) };
-  if (routerKey) payload.model = `openai/${payload.model}`;
+  if (routerKey && !String(payload.model).includes("/")) {
+    payload.model = `openai/${payload.model}`;
+  }
   const response = await fetch(`${baseUrl}/${path}`, {
     method: "POST",
     headers: {
